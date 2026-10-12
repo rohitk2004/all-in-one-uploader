@@ -2040,62 +2040,35 @@ with tab13:
         flx_phone_input = st.text_input("Support Toll-Free Phone", value="+1 888 308 7172", key="flx_phone_input")
         flx_groq_key = st.text_input("Groq API Key (High-Speed AI)", value=DEFAULT_GROQ_KEY, type="password", key="flx_groq_key")
 
-        flx_post_mode = st.radio("Posting Mode", ["Single Thread Post", "Batch Posting (Multiple Titles)"], horizontal=True, key="flx_post_mode")
+        flx_titles_raw = st.text_area(
+            "Enter Thread Titles (One title per line):",
+            value="[2026 Updated] How Do I Confirm Norton Purchase Details?\nHow to Cancel Norton and Manage Your Subscription Settings",
+            height=180,
+            key="flx_batch_titles_input",
+            help="Sirf Titles enter karein. Groq AI automatically 2500+ words unique authentic content banayega."
+        )
 
-        if flx_post_mode == "Single Thread Post":
-            flx_subject = st.text_input(
-                "Thread Subject / Title",
-                value="《FAQ'S™》1 888 308 7172 How to Cancel Norton Subscription",
-                key="flx_single_subject"
-            )
+        flx_uploaded_file = st.file_uploader(
+            "Or upload a .txt file containing thread titles",
+            type=["txt"],
+            key="flx_titles_file"
+        )
 
-            col_gen_flx, _ = st.columns([1, 1])
-            if col_gen_flx.button("✨ Auto-Generate AI Content for This Title", key="btn_gen_single_content_flx"):
-                with st.spinner("Generating authentic content with Groq AI..."):
-                    gen_txt = generate_proboards_content(title=flx_subject, phone=flx_phone_input, groq_api_key=flx_groq_key)
-                    st.session_state.flx_single_content_val = gen_txt
+        flx_titles_list = []
+        if flx_uploaded_file:
+            content_file = flx_uploaded_file.read().decode("utf-8")
+            flx_titles_list.extend([line.strip() for line in content_file.splitlines() if line.strip()])
+        if flx_titles_raw:
+            flx_titles_list.extend([line.strip() for line in flx_titles_raw.splitlines() if line.strip()])
+        flx_titles_list = list(dict.fromkeys(flx_titles_list))
 
-            if "flx_single_content_val" not in st.session_state:
-                st.session_state.flx_single_content_val = "Click '✨ Auto-Generate AI Content for This Title' above to generate unique content with Groq AI, or enter your custom content here."
-            flx_single_val = st.session_state.flx_single_content_val
-
-            flx_content = st.text_area(
-                "Thread Content:",
-                value=flx_single_val,
-                height=220,
-                key="flx_single_content_area"
-            )
-            flx_titles_list = [flx_subject] if flx_subject.strip() else []
-        else:
-            flx_titles_raw = st.text_area(
-                "Enter Thread Titles (One title per line):",
-                value="[2026 Updated] How Do I Confirm Norton Purchase Details?\nHow to Cancel Norton and Manage Your Subscription Settings",
-                height=180,
-                key="flx_batch_titles_input"
-            )
-            flx_uploaded_file = st.file_uploader(
-                "Or upload a .txt file containing thread titles",
-                type=["txt"],
-                key="flx_titles_file"
-            )
-            flx_auto_content = st.checkbox("Auto-generate unique content for each title using Groq AI", value=True, key="flx_auto_content")
-            flx_custom_content = ""
-            if not flx_auto_content:
-                flx_custom_content = st.text_area("Default Content for all titles:", value="Hello everyone! Looking forward to hearing your thoughts on this topic.", height=100, key="flx_custom_default_content")
-
-            flx_titles_list = []
-            if flx_uploaded_file:
-                content_file = flx_uploaded_file.read().decode("utf-8")
-                flx_titles_list.extend([line.strip() for line in content_file.splitlines() if line.strip()])
-            if flx_titles_raw:
-                flx_titles_list.extend([line.strip() for line in flx_titles_raw.splitlines() if line.strip()])
-            flx_titles_list = list(dict.fromkeys(flx_titles_list))
+        st.success(f"✨ **{len(flx_titles_list)}** Title(s) ready. Groq AI har title ke liye auto 2500+ words content banayega!")
 
         flx_timeout = st.slider("Timeout waiting for Captcha / Publish (seconds)", min_value=60, max_value=300, value=180, step=30, key="flx_timeout_slider")
 
-        st.info("💡 **Browser Workflow**: Bot launches a real visible Chromium window, logs into ProBoards (`leomendis5`), navigates to Flyx General Discussion (`thread/new/1`), fills Subject & AI Content, clicks 'Create Thread', auto-checks TOS. Solve captcha if prompted!")
+        st.info("💡 **Browser Workflow**: Bot launches a real visible Chromium window, logs into ProBoards (`leomendis5`), navigates to Flyx General Discussion (`thread/new/1`), fills Subject & Auto-Generated Groq AI Content, clicks 'Create Thread', auto-checks TOS. Solve captcha if prompted!")
 
-        if st.button("🚀 Start Flyx ProBoards Bot", type="primary", use_container_width=True, key="btn_flx_start"):
+        if st.button("🚀 Start Flyx ProBoards Bot (Auto-Generate & Post)", type="primary", use_container_width=True, key="btn_flx_start"):
             if not flx_titles_list:
                 st.error("Please provide at least one subject / title!")
             else:
@@ -2105,18 +2078,13 @@ with tab13:
                 live_flx_container = st.container()
 
                 for idx, t_title in enumerate(flx_titles_list):
-                    flx_status.info(f"⏳ Processing ({idx + 1}/{len(flx_titles_list)}): **{t_title}** - Browser is opening...")
+                    flx_status.info(f"⏳ Processing ({idx + 1}/{len(flx_titles_list)}): **{t_title}** - Generating Groq AI Content & opening browser...")
 
-                    if flx_post_mode == "Single Thread Post":
-                        t_content = flx_content
-                    else:
-                        if flx_auto_content:
-                            try:
-                                t_content = generate_proboards_content(title=t_title, phone=flx_phone_input, groq_api_key=flx_groq_key)
-                            except Exception:
-                                t_content = f"Hello friends!\n\nI wanted to open up a discussion about '{t_title}'. For live support dial {flx_phone_input}."
-                        else:
-                            t_content = flx_custom_content if flx_custom_content else f"Discussion on {t_title}"
+                    # Auto generate unique content with Groq AI
+                    try:
+                        t_content = generate_proboards_content(title=t_title, phone=flx_phone_input, groq_api_key=flx_groq_key)
+                    except Exception as ge:
+                        t_content = f"Hello friends!\n\nI wanted to open up a discussion about '{t_title}'. For live support dial {flx_phone_input}."
 
                     res = run_proboards_sync(
                         guest_name="Leo Mendis",
