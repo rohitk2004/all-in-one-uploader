@@ -85,6 +85,7 @@ For headless batch execution from the terminal, specialized CLI runners are avai
 |---|---|
 | `run_user_titles_batch.py` | Batch publish multiple titles to ProBoards |
 | `run_arcade_batch.py` | Arcade designer forum batch automation |
+| `run_flyx_batch.py` | Flyx ProBoards (`flyx.proboards.com`) automated batch poster |
 | `run_quaalude_batch.py` | Quaalude forum batch poster |
 | `run_naruto_batch.py` | Naruto Revelation forum batch poster |
 | `run_youtubetv_bot.py` | YouTube TV forum runner |
@@ -119,6 +120,7 @@ all-in-one-uploader/
 ├── ufl_affiliate_uploader.py  # UFL affiliate uploader
 │
 ├── proboards_bot.py           # ProBoards multi-board automation bot
+├── run_flyx_batch.py          # Flyx ProBoards batch poster bot
 ├── king_bot.py                # Community King forum bot
 ├── firstory_bot.py            # Firstory playlist creator bot
 ├── huggingface_bot.py         # Hugging Face forum bot

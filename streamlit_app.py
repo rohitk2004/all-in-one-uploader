@@ -93,7 +93,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12, tab13 = st.tabs([
     "📄 FD.org PDF Uploader",
     "🏢 CAPI AA Bulk PDF Uploader",
     "📻 Firstory Playlist Creator Bot",
@@ -105,7 +105,8 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.t
     "📥 Bulk URL Content Extractor (DOC Export)",
     "📑 Adminus ProBoards DOCX Poster",
     "🎮 Arcade Game Designer Bot",
-    "💊 Quaalude ProBoards Bot"
+    "💊 Quaalude ProBoards Bot",
+    "🦅 Flyx ProBoards Bot"
 ])
 
 # Session state initialization
@@ -175,6 +176,15 @@ if "quaalude_links" not in st.session_state:
         try:
             with open("quaalude_threads.txt", "r", encoding="utf-8") as qf:
                 st.session_state.quaalude_links = [l.strip() for l in qf if l.strip() and "/thread/" in l and "/thread/new/" not in l]
+        except Exception:
+            pass
+
+if "flyx_links" not in st.session_state:
+    st.session_state.flyx_links = []
+    if os.path.exists("flyx_threads.txt"):
+        try:
+            with open("flyx_threads.txt", "r", encoding="utf-8") as ff:
+                st.session_state.flyx_links = [l.strip() for l in ff if l.strip() and "/thread/" in l and "/thread/new/" not in l]
         except Exception:
             pass
 
@@ -1981,6 +1991,184 @@ with tab12:
                 if st.session_state.quaalude_links:
                     st.balloons()
                     st.success(f"🎉 Completed all {len(qua_titles_list)} thread(s)!")
+
+# --- TAB 13: Flyx ProBoards Bot ---
+with tab13:
+    col_flx1, col_flx2 = st.columns([1, 1], gap="large")
+
+    with col_flx2:
+        st.subheader("📋 Live Flyx Thread Links (Copy to Excel)")
+        st.caption("Updates in real-time as each thread publishes. Select-all and copy directly into Excel!")
+        flx_output_placeholder = st.empty()
+        flx_count_placeholder = st.empty()
+        flx_download_placeholder = st.empty()
+
+        initial_flx_text = "\n".join(st.session_state.flyx_links)
+        flx_output_placeholder.text_area(
+            label="Live Plain Text Thread Links Box:",
+            value=initial_flx_text if initial_flx_text else "",
+            height=380,
+            key="flx_text_area_init",
+            help="Copy all links directly into Excel!"
+        )
+
+        if st.session_state.flyx_links:
+            flx_count_placeholder.success(f"Total Created Threads: {len(st.session_state.flyx_links)}")
+            flx_download_placeholder.download_button(
+                label="📥 Download Flyx Links (.txt)",
+                data=initial_flx_text,
+                file_name="flyx_threads.txt",
+                mime="text/plain",
+                use_container_width=True,
+                key="flx_download_btn_init"
+            )
+
+    with col_flx1:
+        st.subheader("🦅 Flyx ProBoards Bot")
+        st.caption("Target Board: `https://flyx.proboards.com/thread/new/1` | AI Content Generation")
+
+        flx_login_url = st.text_input("ProBoards Login URL", value="https://login.proboards.com/login/7489843/1", key="flx_login_url")
+        
+        col_flx_c1, col_flx_c2 = st.columns([1, 1])
+        with col_flx_c1:
+            flx_username = st.text_input("Username / Email", value="leomendis5", key="flx_username")
+        with col_flx_c2:
+            flx_password = st.text_input("Password", value="Rohit@123321#", type="password", key="flx_password")
+
+        flx_target_url = st.text_input("Target New Thread URL", value="https://flyx.proboards.com/thread/new/1", key="flx_target_url")
+
+        flx_phone_input = st.text_input("Support Toll-Free Phone", value="+1 888 308 7172", key="flx_phone_input")
+        flx_groq_key = st.text_input("Groq API Key (High-Speed AI)", value=DEFAULT_GROQ_KEY, type="password", key="flx_groq_key")
+
+        flx_post_mode = st.radio("Posting Mode", ["Single Thread Post", "Batch Posting (Multiple Titles)"], horizontal=True, key="flx_post_mode")
+
+        if flx_post_mode == "Single Thread Post":
+            flx_subject = st.text_input(
+                "Thread Subject / Title",
+                value="《FAQ'S™》1 888 308 7172 How to Cancel Norton Subscription",
+                key="flx_single_subject"
+            )
+
+            col_gen_flx, _ = st.columns([1, 1])
+            if col_gen_flx.button("✨ Auto-Generate AI Content for This Title", key="btn_gen_single_content_flx"):
+                with st.spinner("Generating authentic content with Groq AI..."):
+                    gen_txt = generate_proboards_content(title=flx_subject, phone=flx_phone_input, groq_api_key=flx_groq_key)
+                    st.session_state.flx_single_content_val = gen_txt
+
+            if "flx_single_content_val" not in st.session_state:
+                st.session_state.flx_single_content_val = "Click '✨ Auto-Generate AI Content for This Title' above to generate unique content with Groq AI, or enter your custom content here."
+            flx_single_val = st.session_state.flx_single_content_val
+
+            flx_content = st.text_area(
+                "Thread Content:",
+                value=flx_single_val,
+                height=220,
+                key="flx_single_content_area"
+            )
+            flx_titles_list = [flx_subject] if flx_subject.strip() else []
+        else:
+            flx_titles_raw = st.text_area(
+                "Enter Thread Titles (One title per line):",
+                value="[2026 Updated] How Do I Confirm Norton Purchase Details?\nHow to Cancel Norton and Manage Your Subscription Settings",
+                height=180,
+                key="flx_batch_titles_input"
+            )
+            flx_uploaded_file = st.file_uploader(
+                "Or upload a .txt file containing thread titles",
+                type=["txt"],
+                key="flx_titles_file"
+            )
+            flx_auto_content = st.checkbox("Auto-generate unique content for each title using Groq AI", value=True, key="flx_auto_content")
+            flx_custom_content = ""
+            if not flx_auto_content:
+                flx_custom_content = st.text_area("Default Content for all titles:", value="Hello everyone! Looking forward to hearing your thoughts on this topic.", height=100, key="flx_custom_default_content")
+
+            flx_titles_list = []
+            if flx_uploaded_file:
+                content_file = flx_uploaded_file.read().decode("utf-8")
+                flx_titles_list.extend([line.strip() for line in content_file.splitlines() if line.strip()])
+            if flx_titles_raw:
+                flx_titles_list.extend([line.strip() for line in flx_titles_raw.splitlines() if line.strip()])
+            flx_titles_list = list(dict.fromkeys(flx_titles_list))
+
+        flx_timeout = st.slider("Timeout waiting for Captcha / Publish (seconds)", min_value=60, max_value=300, value=180, step=30, key="flx_timeout_slider")
+
+        st.info("💡 **Browser Workflow**: Bot launches a real visible Chromium window, logs into ProBoards (`leomendis5`), navigates to Flyx General Discussion (`thread/new/1`), fills Subject & AI Content, clicks 'Create Thread', auto-checks TOS. Solve captcha if prompted!")
+
+        if st.button("🚀 Start Flyx ProBoards Bot", type="primary", use_container_width=True, key="btn_flx_start"):
+            if not flx_titles_list:
+                st.error("Please provide at least one subject / title!")
+            else:
+                st.write(f"🔄 Starting bot for {len(flx_titles_list)} thread(s)...")
+                flx_progress_bar = st.progress(0)
+                flx_status = st.empty()
+                live_flx_container = st.container()
+
+                for idx, t_title in enumerate(flx_titles_list):
+                    flx_status.info(f"⏳ Processing ({idx + 1}/{len(flx_titles_list)}): **{t_title}** - Browser is opening...")
+
+                    if flx_post_mode == "Single Thread Post":
+                        t_content = flx_content
+                    else:
+                        if flx_auto_content:
+                            try:
+                                t_content = generate_proboards_content(title=t_title, phone=flx_phone_input, groq_api_key=flx_groq_key)
+                            except Exception:
+                                t_content = f"Hello friends!\n\nI wanted to open up a discussion about '{t_title}'. For live support dial {flx_phone_input}."
+                        else:
+                            t_content = flx_custom_content if flx_custom_content else f"Discussion on {t_title}"
+
+                    res = run_proboards_sync(
+                        guest_name="Leo Mendis",
+                        subject=t_title,
+                        content=t_content,
+                        login_url=flx_login_url,
+                        username=flx_username,
+                        password=flx_password,
+                        target_url=flx_target_url,
+                        timeout_sec=flx_timeout,
+                        groq_api_key=flx_groq_key
+                    )
+
+                    flx_progress_bar.progress((idx + 1) / len(flx_titles_list))
+
+                    if res.get("success") and res.get("url"):
+                        new_url = res["url"]
+                        if new_url not in st.session_state.flyx_links:
+                            st.session_state.flyx_links.append(new_url)
+
+                        with open("flyx_threads.txt", "a", encoding="utf-8") as ff:
+                            ff.write(f"{new_url}\n")
+
+                        updated_flx_text = "\n".join(st.session_state.flyx_links)
+                        flx_output_placeholder.text_area(
+                            label="Live Plain Text Thread Links Box:",
+                            value=updated_flx_text,
+                            height=380,
+                            key=f"flx_text_area_live_{idx}",
+                            help="Copy all links directly into Excel!"
+                        )
+                        flx_count_placeholder.success(f"Total Created Threads: {len(st.session_state.flyx_links)}")
+                        flx_download_placeholder.download_button(
+                            label="📥 Download Flyx Links (.txt)",
+                            data=updated_flx_text,
+                            file_name="flyx_threads.txt",
+                            mime="text/plain",
+                            use_container_width=True,
+                            key=f"flx_download_btn_live_{idx}"
+                        )
+
+                        with live_flx_container:
+                            st.success(f"✅ **({idx + 1}/{len(flx_titles_list)}) {t_title}** → [Created Thread Link]({new_url})")
+                    else:
+                        err_msg = res.get("error", "Unknown error or timeout")
+                        with live_flx_container:
+                            st.error(f"❌ **({idx + 1}/{len(flx_titles_list)}) {t_title}** → Error: {err_msg}")
+
+                if st.session_state.flyx_links:
+                    st.balloons()
+                    st.success(f"🎉 Completed all {len(flx_titles_list)} thread(s)!")
+
 
 
 
