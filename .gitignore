@@ -1,0 +1,40 @@
+# Chrome Profiles & Browser Session Data (Playwright User Data Directories)
+*_chrome_profile/
+*chrome_profile/
+smartwaiver_chrome_profile/
+king_chrome_profile/
+.playwright/
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.mypy_cache/
+venv/
+.venv/
+env/
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+
+# Generated links, logs & txt dumps (except requirements.txt)
+*.txt
+!requirements.txt
+*.log
+*.tmp
+
+# Scratch / Debug artifacts
+scratch/
+*.png
+*.html
+*.pdf
+*.zip
+
+# OS Specific
+.DS_Store
+Thumbs.db
+desktop.ini

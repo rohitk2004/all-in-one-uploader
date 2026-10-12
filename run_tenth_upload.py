@@ -1,0 +1,38 @@
+import sys
+import os
+from tenth_uploader import upload_pdf_to_tenth, batch_upload_pdfs, DEFAULT_JOB_URL, safe_print
+
+print = safe_print
+
+def main():
+    print("=" * 60)
+    print("🏛️ [TENTH REVOLUTION PDF UPLOADER BOT]")
+    print(f"🎯 Target Form: {DEFAULT_JOB_URL}")
+    print("=" * 60)
+
+    if len(sys.argv) > 1:
+        targets = sys.argv[1:]
+        print(f"[*] Uploading provided file(s): {targets}")
+        results = batch_upload_pdfs(targets)
+    else:
+        sample_file = "doc1.pdf"
+        if not os.path.exists(sample_file):
+            with open(sample_file, "wb") as f:
+                f.write(b"%PDF-1.4 sample resume document for tenth revolution")
+        print(f"[*] No file argument passed. Uploading sample file: {sample_file}...")
+        res = upload_pdf_to_tenth(sample_file, filename="consultant_d365_resume.pdf")
+        results = [res]
+
+    print("\n" + "=" * 60)
+    print("📋 [UPLOAD SUMMARY & LIVE URLS]")
+    print("=" * 60)
+    for r in results:
+        if r.get("success"):
+            print(f"✅ {r.get('filename')}: {r.get('url')}")
+        else:
+            print(f"❌ {r.get('filename')}: Error -> {r.get('error')}")
+
+    print(f"\n[+] Saved to: tenth_uploaded_links.txt")
+
+if __name__ == "__main__":
+    main()
