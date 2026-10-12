@@ -30,7 +30,7 @@ from firstory_bot import create_firstory_playlist, DEFAULT_EMAIL as FIRSTORY_EMA
 from king_bot import create_king_discussion, register_king_account_visible, DEFAULT_EMAIL as KING_EMAIL, DEFAULT_PASSWORD as KING_PASS
 from pdf_generator import create_valid_pdf
 from unique_content_engine import generate_unique_description
-from proboards_bot import create_proboards_thread, run_proboards_sync, generate_proboards_content, extract_phone_tag, DEFAULT_PHONE, DEFAULT_GROQ_KEY
+from proboards_bot import create_proboards_thread, run_proboards_sync, run_proboards_batch_sync, generate_proboards_content, extract_phone_tag, DEFAULT_PHONE, DEFAULT_GROQ_KEY
 from pdf_content_exporter import create_single_article_pdf, create_combined_pdf, create_articles_zip
 from eden_uploader import upload_pdf_to_eden, batch_upload_pdfs, DEFAULT_JOB_URL
 from tenth_uploader import upload_pdf_to_tenth, batch_upload_pdfs as batch_upload_tenth_pdfs, DEFAULT_JOB_URL as TENTH_DEFAULT_JOB_URL
@@ -2072,48 +2072,28 @@ with tab13:
             if not flx_titles_list:
                 st.error("Please provide at least one subject / title!")
             else:
-                st.write(f"🔄 Starting bot for {len(flx_titles_list)} thread(s)...")
+                st.write(f"🔄 Starting single-session batch posting for {len(flx_titles_list)} thread(s)...")
                 flx_progress_bar = st.progress(0)
                 flx_status = st.empty()
                 live_flx_container = st.container()
 
-                for idx, t_title in enumerate(flx_titles_list):
-                    flx_status.info(f"⏳ Processing ({idx + 1}/{len(flx_titles_list)}): **{t_title}** - Generating Groq AI Content & opening browser...")
-
-                    # Auto generate unique content with Groq AI
-                    try:
-                        t_content = generate_proboards_content(title=t_title, phone=flx_phone_input, groq_api_key=flx_groq_key)
-                    except Exception as ge:
-                        t_content = f"Hello friends!\n\nI wanted to open up a discussion about '{t_title}'. For live support dial {flx_phone_input}."
-
-                    res = run_proboards_sync(
-                        guest_name="Leo Mendis",
-                        subject=t_title,
-                        content=t_content,
-                        login_url=flx_login_url,
-                        username=flx_username,
-                        password=flx_password,
-                        target_url=flx_target_url,
-                        timeout_sec=flx_timeout,
-                        groq_api_key=flx_groq_key
-                    )
-
-                    flx_progress_bar.progress((idx + 1) / len(flx_titles_list))
-
-                    if res.get("success") and res.get("url"):
-                        new_url = res["url"]
-                        if new_url not in st.session_state.flyx_links:
-                            st.session_state.flyx_links.append(new_url)
-
-                        with open("flyx_threads.txt", "a", encoding="utf-8") as ff:
-                            ff.write(f"{new_url}\n")
-
+                def update_flyx_ui(current_idx, total_count, title, state, extra):
+                    flx_progress_bar.progress(current_idx / total_count)
+                    if state == "generating_content":
+                        flx_status.info(f"⏳ ({current_idx}/{total_count}) **{title}**: Generating 2500+ words Groq AI content...")
+                    elif state == "opening_form":
+                        flx_status.info(f"⏳ ({current_idx}/{total_count}) **{title}**: Filling Subject & Content in browser...")
+                    elif state == "success":
+                        with live_flx_container:
+                            st.success(f"✅ **({current_idx}/{total_count}) {title}** → [Created Thread Link]({extra})")
+                        if extra not in st.session_state.flyx_links:
+                            st.session_state.flyx_links.append(extra)
                         updated_flx_text = "\n".join(st.session_state.flyx_links)
                         flx_output_placeholder.text_area(
                             label="Live Plain Text Thread Links Box:",
                             value=updated_flx_text,
                             height=380,
-                            key=f"flx_text_area_live_{idx}",
+                            key=f"flx_text_area_live_{current_idx}_{time.time_ns()}",
                             help="Copy all links directly into Excel!"
                         )
                         flx_count_placeholder.success(f"Total Created Threads: {len(st.session_state.flyx_links)}")
@@ -2123,19 +2103,33 @@ with tab13:
                             file_name="flyx_threads.txt",
                             mime="text/plain",
                             use_container_width=True,
-                            key=f"flx_download_btn_live_{idx}"
+                            key=f"flx_download_btn_live_{current_idx}_{time.time_ns()}"
                         )
+                    elif state == "failed":
+                        with live_flx_container:
+                            st.error(f"❌ **({current_idx}/{total_count}) {title}** → Failed or timed out")
+                    elif state == "cooldown":
+                        flx_status.warning(f"⏳ ({current_idx}/{total_count}) Cooldown: Waiting {extra:.1f}s before posting next thread in the same session...")
 
-                        with live_flx_container:
-                            st.success(f"✅ **({idx + 1}/{len(flx_titles_list)}) {t_title}** → [Created Thread Link]({new_url})")
-                    else:
-                        err_msg = res.get("error", "Unknown error or timeout")
-                        with live_flx_container:
-                            st.error(f"❌ **({idx + 1}/{len(flx_titles_list)}) {t_title}** → Error: {err_msg}")
+                results = run_proboards_batch_sync(
+                    titles=flx_titles_list,
+                    guest_name="Leo Mendis",
+                    login_url=flx_login_url,
+                    username=flx_username,
+                    password=flx_password,
+                    target_url=flx_target_url,
+                    timeout_sec=flx_timeout,
+                    groq_api_key=flx_groq_key,
+                    phone=flx_phone_input,
+                    min_delay_sec=10.0,
+                    max_delay_sec=15.0,
+                    output_file="flyx_threads.txt",
+                    on_progress=update_flyx_ui
+                )
 
                 if st.session_state.flyx_links:
                     st.balloons()
-                    st.success(f"🎉 Completed all {len(flx_titles_list)} thread(s)!")
+                    st.success(f"🎉 Completed batch posting for all {len(flx_titles_list)} thread(s)!")
 
 
 

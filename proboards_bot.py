@@ -464,6 +464,268 @@ def run_proboards_sync(
             guest_name, subject, content, login_url, username, password, target_url, timeout_sec, groq_api_key
         ))
 
+async def batch_post_proboards_threads(
+    titles: list,
+    guest_name: str = "Leo Mendis",
+    login_url: str = DEFAULT_LOGIN_URL,
+    username: str = DEFAULT_USERNAME,
+    password: str = DEFAULT_PASSWORD,
+    target_url: str = URL,
+    timeout_sec: int = 180,
+    groq_api_key: str = DEFAULT_GROQ_KEY,
+    phone: str = DEFAULT_PHONE,
+    min_delay_sec: float = 10.0,
+    max_delay_sec: float = 15.0,
+    output_file: str = "proboards_threads.txt",
+    on_progress = None
+) -> list:
+    """
+    Opens browser ONCE, logs into ProBoards ONCE, and posts all titles sequentially
+    in the same browser session with a random 10-15s delay between posts.
+    """
+    import random
+    unique_titles = list(dict.fromkeys([t.strip() for t in titles if t.strip()]))
+    total = len(unique_titles)
+    results = []
+
+    if total == 0:
+        return results
+
+    print("\n" + "="*60, flush=True)
+    print(f"🚀 [PROBOARDS BATCH RUNNER] Starting single-session posting for {total} title(s)...", flush=True)
+    if username and password:
+        print(f"🔑 Account    : {username} (One-Time Login)", flush=True)
+        print(f"🌐 Login URL  : {login_url}", flush=True)
+    print(f"📝 Target URL : {target_url}", flush=True)
+    print(f"⏱️ Inter-post delay: {min_delay_sec}s - {max_delay_sec}s", flush=True)
+    print("="*60 + "\n", flush=True)
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(
+            headless=False,
+            args=[
+                "--start-maximized",
+                "--window-position=50,50",
+                "--disable-blink-features=AutomationControlled"
+            ]
+        )
+        context = await browser.new_context(
+            viewport=None,
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+        )
+        page = await context.new_page()
+
+        try:
+            # 1. ONE-TIME LOGIN
+            if login_url and username and password:
+                print(f"[*] [ONE-TIME LOGIN] Navigating to Login Page: {login_url}...", flush=True)
+                await page.goto(login_url, wait_until="commit", timeout=60000)
+                await page.wait_for_timeout(3000)
+
+                email_input = page.locator("input[name='email']")
+                if await email_input.count() > 0:
+                    print(f"[*] Entering credentials for {username}...", flush=True)
+                    await email_input.fill("")
+                    await email_input.type(username, delay=35)
+                    await page.wait_for_timeout(400)
+
+                    pass_input = page.locator("input[name='password']")
+                    await pass_input.fill("")
+                    await pass_input.type(password, delay=35)
+                    await page.wait_for_timeout(400)
+
+                    print("[*] Submitting login form...", flush=True)
+                    submit_login = page.locator("input[type='submit'], button[type='submit'], input[name='continue']").first
+                    await submit_login.click()
+                    await page.wait_for_timeout(5000)
+                    print(f"[+] One-time login completed! Logged-in URL: {page.url}\n", flush=True)
+
+            # 2. SEQUENTIAL POSTING IN THE SAME BROWSER SESSION
+            for idx, title in enumerate(unique_titles, start=1):
+                print("="*60, flush=True)
+                print(f"📌 [{idx}/{total}] Processing Title: {title}", flush=True)
+                print("="*60, flush=True)
+
+                if on_progress:
+                    try:
+                        on_progress(idx, total, title, "generating_content", None)
+                    except Exception:
+                        pass
+
+                # Generate unique content with Groq AI
+                print("[*] Generating unique 2500+ word content with Groq AI...", flush=True)
+                try:
+                    content = generate_proboards_content(title=title, phone=phone, groq_api_key=groq_api_key)
+                except Exception as ce:
+                    print(f"[!] Content gen error, using structured fallback: {ce}", flush=True)
+                    content = f"Hello everyone,\n\nI wanted to open a detailed discussion regarding '{title}'. For immediate support call {phone}."
+
+                if on_progress:
+                    try:
+                        on_progress(idx, total, title, "opening_form", None)
+                    except Exception:
+                        pass
+
+                # Navigate directly to target new thread URL
+                print(f"[*] Navigating to new thread form: {target_url}...", flush=True)
+                await page.goto(target_url, wait_until="commit", timeout=60000)
+                await page.wait_for_timeout(2500)
+
+                # Fill Guest Name if visible
+                guest_input = page.locator("input[name='created_by_guest_name']")
+                if await guest_input.count() > 0 and await guest_input.is_visible():
+                    await guest_input.click()
+                    await page.wait_for_timeout(200)
+                    await guest_input.fill("")
+                    await guest_input.type(guest_name, delay=35)
+                    await page.wait_for_timeout(500)
+
+                # Fill Subject
+                subject_input = page.locator("input[name='subject']")
+                await subject_input.wait_for(state="visible", timeout=20000)
+                await subject_input.click()
+                await page.wait_for_timeout(300)
+                await subject_input.fill("")
+                await subject_input.type(title, delay=25)
+                print(f"[+] Subject filled: {title}", flush=True)
+                await page.wait_for_timeout(1000)
+
+                # Fill Content in Visual Editor / Textarea
+                content_html = "<p>" + content.replace("\n", "<br>") + "</p>"
+                await page.evaluate(f"""() => {{
+                    const iframe = document.querySelector('.editor.visual-editor iframe');
+                    if (iframe) {{
+                        const doc = iframe.contentDocument || iframe.contentWindow.document;
+                        doc.body.innerHTML = {repr(content_html)};
+                        doc.body.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        doc.body.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    }}
+                    const ta = document.querySelector('textarea.wysiwyg-textarea');
+                    if (ta) {{
+                        ta.value = {repr(content)};
+                        ta.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        ta.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    }}
+                }}""")
+                print("[+] Content filled into editor!", flush=True)
+                await page.wait_for_timeout(2000)
+
+                # Click Create Thread
+                print("[*] Clicking 'Create Thread'...", flush=True)
+                submit_btn = page.locator("input[type='submit'][value='Create Thread'], input[name='post']").first
+                await submit_btn.click()
+
+                # Check for Human Verification dialog if present
+                try:
+                    dialog = page.locator(".ui-dialog:has-text('Please prove you are human')")
+                    if await dialog.count() > 0:
+                        await dialog.wait_for(state="visible", timeout=10000)
+                        print("[+] Human verification dialog popped up!", flush=True)
+                        await page.wait_for_timeout(1000)
+                        tos_cb = dialog.locator("input[name='tos_checkbox']")
+                        if await tos_cb.count() > 0:
+                            await tos_cb.check()
+                            print("[+] Checked Terms of Service automatically!", flush=True)
+                        await page.wait_for_timeout(1000)
+                        try:
+                            recaptcha_frame = page.frame_locator("iframe[title='reCAPTCHA']")
+                            anchor = recaptcha_frame.locator("#recaptcha-anchor")
+                            if await anchor.count() > 0:
+                                await anchor.click()
+                                print("[+] Clicked reCAPTCHA checkbox automatically!", flush=True)
+                        except Exception as e:
+                            pass
+                except Exception:
+                    pass
+
+                print(f"[*] Waiting for thread publish... (Timeout: {timeout_sec}s)", flush=True)
+                created_url = None
+                for second in range(timeout_sec):
+                    await page.wait_for_timeout(1000)
+                    curr_url = page.url
+                    if "/thread/" in curr_url and "/thread/new/" not in curr_url:
+                        created_url = curr_url
+                        break
+                    if second % 15 == 0 and second > 0:
+                        print(f"[*] Polling publish status... ({second}/{timeout_sec}s)", flush=True)
+
+                if created_url:
+                    print(f"✅ [SUCCESS {idx}/{total}] Thread Created: {created_url}\n", flush=True)
+                    if output_file:
+                        try:
+                            with open(output_file, "a", encoding="utf-8") as out_f:
+                                out_f.write(f"{created_url}\n")
+                        except Exception:
+                            pass
+                    results.append({"title": title, "success": True, "url": created_url})
+                    if on_progress:
+                        try:
+                            on_progress(idx, total, title, "success", created_url)
+                        except Exception:
+                            pass
+                else:
+                    print(f"❌ [FAILED {idx}/{total}] Could not publish: {page.url}\n", flush=True)
+                    results.append({"title": title, "success": False, "error": "Timeout or not published", "url": page.url})
+                    if on_progress:
+                        try:
+                            on_progress(idx, total, title, "failed", None)
+                        except Exception:
+                            pass
+
+                # If there are more titles to post, wait a random 10 to 15 seconds!
+                if idx < total:
+                    delay = random.uniform(min_delay_sec, max_delay_sec)
+                    print(f"⏳ [COOLDOWN] Waiting {delay:.1f}s before next post in the same session...\n", flush=True)
+                    if on_progress:
+                        try:
+                            on_progress(idx, total, title, "cooldown", delay)
+                        except Exception:
+                            pass
+                    await page.wait_for_timeout(int(delay * 1000))
+
+            print("\n" + "="*60, flush=True)
+            print(f"🎉 All {total} threads processed! Closing browser session.", flush=True)
+            print("="*60 + "\n", flush=True)
+            await page.wait_for_timeout(2000)
+
+        finally:
+            await browser.close()
+
+    return results
+
+def run_proboards_batch_sync(
+    titles: list,
+    guest_name: str = "Leo Mendis",
+    login_url: str = DEFAULT_LOGIN_URL,
+    username: str = DEFAULT_USERNAME,
+    password: str = DEFAULT_PASSWORD,
+    target_url: str = URL,
+    timeout_sec: int = 180,
+    groq_api_key: str = DEFAULT_GROQ_KEY,
+    phone: str = DEFAULT_PHONE,
+    min_delay_sec: float = 10.0,
+    max_delay_sec: float = 15.0,
+    output_file: str = "proboards_threads.txt",
+    on_progress = None
+) -> list:
+    """Synchronous wrapper for batch_post_proboards_threads"""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                return pool.submit(asyncio.run, batch_post_proboards_threads(
+                    titles, guest_name, login_url, username, password, target_url, timeout_sec, groq_api_key, phone, min_delay_sec, max_delay_sec, output_file, on_progress
+                )).result()
+        else:
+            return loop.run_until_complete(batch_post_proboards_threads(
+                titles, guest_name, login_url, username, password, target_url, timeout_sec, groq_api_key, phone, min_delay_sec, max_delay_sec, output_file, on_progress
+            ))
+    except Exception:
+        return asyncio.run(batch_post_proboards_threads(
+            titles, guest_name, login_url, username, password, target_url, timeout_sec, groq_api_key, phone, min_delay_sec, max_delay_sec, output_file, on_progress
+        ))
+
 if __name__ == "__main__":
     g_name = sys.argv[1] if len(sys.argv) > 1 else "Alex Parker"
     subj = sys.argv[2] if len(sys.argv) > 2 else "Inspirational Stories and Daily Motivation for Shinobi"
