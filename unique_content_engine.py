@@ -7,6 +7,7 @@ Implements 4-Tier Diversity Engineering:
 4. 5-Word Phone Interleaving with user's front-end TFN (+1 888 308 7172)
 """
 
+import os
 import re
 import random
 import hashlib
@@ -21,6 +22,7 @@ OPENROUTER_MODELS = [
     "mistralai/mistral-7b-instruct:free"
 ]
 
+DEFAULT_PHONE = "+1 888 308 7172"
 DEFAULT_OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 # --- Negative Constraints & AI Cliche Banning ---

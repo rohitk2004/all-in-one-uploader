@@ -29,6 +29,8 @@ PROFILE_DIR = os.path.abspath("smartwaiver_chrome_profile")
 CHROME_PATH = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
 SMARTWAIVER_EDITOR_URL = "https://app.smartwaiver.com/editor/v2"
 
+DEFAULT_ID = "akhileshbhai"
+DEFAULT_PASSWORD = "Rohit@123321"
 DEFAULT_OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 
 PHONE_NUMBER_1 = "+1 877 848 5082"
